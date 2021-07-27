@@ -1,0 +1,160 @@
+---
+title: "StatisticalMachineLearning_EndTerm_Assignment"
+author: "Kaushik Srinivas_20201127"
+date: "24/04/2021"
+output: html_document
+---
+
+Setting the working directory where my data file to analyze has been downloaded.
+```{r}
+setwd("D:/UCD/Spring/Statistical ML/Final assignment/")
+```
+
+Loaded the rotten tomatoes review data into a variable. Then we removed the phrase column from the data set as we wont use it for analysis of the model.We could see that there are 6874 observations and 80 variables are in this data set.Out of 80 we have 79 as predictor variables and one target variable class upon which different models has to be built to and choose the best model which would classify the sentiment of a movie review as negative or positive perfectly.
+
+```{r}
+#loading the data in rtr variable
+rtr=read.csv("data_rotten_tomatoes_review.csv")
+#removing the column phrase from the data and keeping the numerical features and target variable
+rtr=rtr[,-1]
+#checking the first three rows after removing the phrase column
+head(rtr,n=3)
+#checking the structure and dimensions of the data set
+#str(rtr)
+dim(rtr)
+```
+
+We could see that our target variable is character variable so we convert it to factor variable for our analysis.
+
+```{r}
+#converting the class variable to factor variable for the analysis
+rtr$class<-factor(rtr$class)
+
+#checking the range of the data
+range(rtr[,-80])
+```
+We could see a lot of variation in the data so we scaled the data so that all the numerical variables will be in the same scale.
+
+```{r}
+#since the range is varying across the data we can scale the numerical data before   analysing
+
+rtr[,-80]<-scale(rtr[,-80])
+#moving it to new data frame for analysis
+rtr1<-rtr
+
+```
+
+using library caret package which provides an extensive and integrated collection of functionalities that we can use for data splitting and model tuning using resampling-based methods.
+We used createDataPartition() function to split the data ,here the split is 80% for train data and 20% for test data.
+trainControl() function is used to perform k fold cross validation where the number parameter 2 indicates the number of k-folds and repeats 10 indicates replications how many times the loop should run.
+we took train data and test data into separate variables for analysis purpose.
+
+```{r}
+library(caret)
+# split
+train_val <- createDataPartition(rtr1$class, p = 0.80, list = FALSE)
+dat <- rtr1[train_val,]
+dat_test <- rtr1[-train_val,]
+#implementing 5 fold cross validation with 10 replicates using trainControl function
+train_ctrl <- trainControl(method = "repeatedcv", number = 2, repeats = 10)
+```
+
+
+#Model Tuning and comparisons:
+Implemented three different classification algorithms namely Support Vector Machines,
+Random Forest and logistic regression. We tuned each model by passing different hyper parameter values and trained using k-fold cross validation with 2 k-folds and replications as 10 and plotted the corresponding accuracies for each models with different hyper parameters passed.
+
+#Model 1: SVM
+-Support vector machines (SVM) are an effective family of supervised classifier for data with complex non-linear structures.
+-We use kernel trick to map original data into high dimensional spaces with less computational cost.
+-The performance of support vector machine classifiers can be sensitive to the choice of kernel function and hyper parameters.
+-Here we used Gaussian Radial Basis Function as kernel function which takes two parameters Cost C and Sigma.
+-We took different values for C and sigma and trained the SVM model with different combination of values and plotted the validation accuracy across the different parameter values using k-fold cross validation technique. 
+-The method here used is "svmRadial" which indicates SVM - GRBF model for train function and data here used is train data and the target variable is class.
+-trControl takes trainControl parameters which indicates k-fold cross validation and tuneGrid takes values of the expanded grid value combinations of parameters C and sigma.
+-optimal cost and sigma value obtained is.
+
+#Model 2: Random Forest
+-Random Forest is a powerful and flexible ensemble learning procedures,improves the prediction performance of a classifiers.
+-Random forests uses the same machinery of bagging, but a clever tweak that is at each
+split of the tree use a random subset of the input variables which reduces the correlation between trees and improves the predictive performance.
+-Here the hyper parameter for random forest model is mtry which is number of predictors for split.We took here different mtry values starting from 2 to 79 by increasing at each step  value as 5 and 79  which is the total number of parameters also included in the list. 
+-The method used here is 'rf' which indicates random forest model for the train function
+and data we used here is train data and the target variable is "class".
+-trControl takes trainControl parameters which indicates k-fold cross validation and tuneGrid takes values of the expanded grid value combinations of mtry parameters.
+-optimal value for mtry obtained from the models is 
+
+#Model 3: Logistsic Regression
+-Logistic regression is one of the best model when the target variable is binary response variable.
+-Glmnet method that fits generalized linear and similar models via penalized maximum likelihood. The regularization path is computed for the lasso or elastic net penalty at a grid of values (on the log scale) for the regularization parameter lambda. The algorithm is extremely fast and can exploit sparsity in the input data.
+-Here it takes two parameters alpha and lambda ,alpha =0 indicating Ridge Regression which is a default value and alpha = 1 indicating Lasso Regression we took alpha =0 and lambda being penalty coefficient takes different range of values.
+-The method used here is 'glmnet' which indicates Logistic Regression model for the train function and data we used here is train data and the target variable is "class".
+-trControl takes trainControl parameters which indicates k-fold cross validation and tuneGrid takes values of the expanded grid value combinations of alpha and lambda parameters.
+-optimal value for lambda obtained from the models is 
+
+
+```{r}
+
+library(doParallel)
+cl <- makeCluster(2) 
+registerDoParallel(cl)
+
+
+#sVMModel
+tune_grid_svm =expand.grid(C = c(1, 10, 50, 100, 200),
+sigma = c(0.001, 0.005, 0.01, 0.05, 0.1))
+set.seed(20201127)
+fit_svm_grbf <- train(class ~ ., data = dat,
+method = "svmRadial",
+trControl = train_ctrl,
+tuneGrid = tune_grid_svm)
+fit_svm_grbf
+plot(fit_svm_grbf)
+
+
+# random forest
+##set grid
+# note that we have 79 predictors
+tune_grid_rf <- expand.grid( mtry = c(seq(2,79,5),79))
+#
+set.seed(20201127)
+fit_rf <- train(class ~ ., data = dat,
+method = "rf",
+trControl = train_ctrl,
+tuneGrid = tune_grid_rf)
+fit_rf
+plot(fit_rf)
+
+#logistic regression
+tune_grid_lr<-expand.grid(alpha=seq(0,0,400),lambda=seq(0.005,0.200,0.005))
+set.seed(20201127)
+fit_lr<-train(class ~ ., data = dat,
+              method="glmnet",
+              trControl=train_ctrl,
+              family="binomial",
+              tuneGrid = tune_grid_lr)
+plot(fit_lr)
+fit_lr
+
+stopCluster(cl)
+
+```
+used the function resamples to easily compare
+the validation predictive performance of the three models across the folds and replications.
+summary function provides Accuracy and Kappa values for all the three model we will select the best model from this Accuracy values.
+
+```{r}
+comp <- resamples(list(svm_grbf = fit_svm_grbf, rf = fit_rf,lr=fit_lr))
+summary(comp)
+```
+
+
+
+
+```{r}
+# extract estimated class labels
+class_hat <- predict(fit_rf, newdata = dat_test)
+# compute metrics
+confusionMatrix(class_hat, dat_test$class,positive ="positive")
+```
+
